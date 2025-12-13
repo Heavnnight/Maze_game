@@ -1852,7 +1852,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: "Move:\nUse W A S D or the Arrow Keys to walk around the maze.\nTalk:\nWalk
     into an NPC to start the dialogue.\nSkip Dialogue:\nPress SPACE to skip to the
-    next line\nTip:\nYou\u2019re a tiny ugly baby\u2026 so be careful. "
+    next line\nIn color match use your mouse\nTip:\nYou\u2019re a tiny ugly baby\u2026
+    so be careful. "
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: dc36b3fdc14f47ebb36fd484a67e268a, type: 2}
   m_sharedMaterial: {fileID: 2140032, guid: dc36b3fdc14f47ebb36fd484a67e268a, type: 2}
