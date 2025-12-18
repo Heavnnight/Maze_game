@@ -1,117 +1,213 @@
+using System.Collections;
 using UnityEngine;
+using TMPro;
 
 public class BossBulletWave : MonoBehaviour
 {
-    [Header("Bullet Prefab (Homing)")]
-    public GameObject bulletPrefab;        // Prefab الطلقة
+    [Header("Bullet Prefabs")]
+    public GameObject whiteBulletPrefab;
+    public GameObject blueBulletPrefab;
+    public GameObject redBulletPrefab;
 
     [Header("Spawn Points")]
-    public Transform[] spawnPoints;        // SpawnPoint1, 2, 3...
+    public Transform[] spawnPoints;
 
-    [Header("Fight Control")]
-    public bool canShoot = false;          // يبدأ الفايت
-    public float fightDuration = 180f;     // 3 دقائق
+    [Header("Straight Wall Settings")]
+    public Vector2 wallDirection = new Vector2(0f, -1f);
+    public int gapSize = 3;
+    public float bulletLifeTime = 2.0f;
 
-    [Header("EASY Phase (أول دقيقة)")]
-    public float easyDuration = 60f;
-    public float easyFireRate = 1.0f;
-    public float easyBulletSpeed = 3f;
+    [Header("Fight Settings (60 sec)")]
+    public bool canShoot = false;
+    public float fightDuration = 60f;
 
-    [Header("MEDIUM Phase (نص صعب)")]
-    public float mediumDuration = 60f;
-    public float mediumFireRate = 0.6f;
-    public float mediumBulletSpeed = 5f;
+    [Header("Phases (20 / 20 / 20)")]
+    public float easyDuration = 20f;
+    public float mediumDuration = 20f;
 
-    [Header("HARD Phase (آخر دقيقة)")]
-    public float hardFireRate = 0.3f;
-    public float hardBulletSpeed = 7f;
+    [Header("Fire Rates")]
+    public float easyFireRate = 1.35f;
+    public float mediumFireRate = 1.15f;
+    public float hardFireRate = 1.0f;
 
-    float timer = 0f;
+    [Header("Bullet Speeds")]
+    public float easyBulletSpeed = 2.8f;
+    public float mediumBulletSpeed = 3.3f;
+    public float hardBulletSpeed = 3.8f;
+
+    [Header("Performance Safety")]
+    public int maxAliveBullets = 70;
+    int aliveBullets = 0;
+
+    [Header("Win UI")]
+    public GameObject winPanel;   // 👈 بس هذا، بدون نص
+
+    [Header("Music (Optional)")]
+    public AudioSource bossMusic;
+
+    float spawnTimer = 0f;
     float fightTimer = 0f;
+    bool fightEnded = false;
 
-    Transform player;
+    int lastGapStart = -1;
+    Coroutine currentWave;
 
     void Start()
     {
-        // نجيب اللاعب عن طريق التاق Player
-        GameObject p = GameObject.FindGameObjectWithTag("Player");
-        if (p != null)
-            player = p.transform;
+        // البانل يكون مطفي بالبداية
+        if (winPanel != null)
+            winPanel.SetActive(false);
     }
 
     void Update()
     {
-        if (!canShoot) return;
-        if (player == null) return;
+        // الوقت يمشي دايم
+        if (!fightEnded)
+            fightTimer += Time.deltaTime;
 
-        // وقت الفايت
-        fightTimer += Time.deltaTime;
-
-        // يوقف بعد انتهاء الوقت
-        if (fightTimer >= fightDuration)
+        // نهاية الفايت
+        if (!fightEnded && fightTimer >= fightDuration)
         {
-            canShoot = false;
+            EndFight();
             return;
         }
 
-        // نحدد الصعوبة الحالية
-        float currentFireRate;
-        float currentBulletSpeed;
+        if (!canShoot || fightEnded) return;
+        if (spawnPoints == null || spawnPoints.Length == 0) return;
+
+        float fireRate;
+        float speed;
 
         if (fightTimer < easyDuration)
         {
-            currentFireRate = easyFireRate;
-            currentBulletSpeed = easyBulletSpeed;
+            fireRate = easyFireRate;
+            speed = easyBulletSpeed;
         }
         else if (fightTimer < easyDuration + mediumDuration)
         {
-            currentFireRate = mediumFireRate;
-            currentBulletSpeed = mediumBulletSpeed;
+            fireRate = mediumFireRate;
+            speed = mediumBulletSpeed;
         }
         else
         {
-            currentFireRate = hardFireRate;
-            currentBulletSpeed = hardBulletSpeed;
+            fireRate = hardFireRate;
+            speed = hardBulletSpeed;
         }
 
-        // إطلاق الطلقات
-        timer += Time.deltaTime;
+        spawnTimer += Time.deltaTime;
 
-        if (timer >= currentFireRate)
+        if (spawnTimer >= fireRate)
         {
-            ShootWave(currentBulletSpeed);
-            timer = 0f;
+            spawnTimer = 0f;
+
+            if (currentWave != null)
+                StopCoroutine(currentWave);
+
+            currentWave = StartCoroutine(SpawnWall(speed));
         }
     }
 
-    void ShootWave(float currentBulletSpeed)
+    IEnumerator SpawnWall(float speed)
     {
-        if (bulletPrefab == null) return;
-        if (spawnPoints == null || spawnPoints.Length == 0) return;
+        int n = spawnPoints.Length;
+        int gSize = Mathf.Clamp(gapSize, 1, n - 1);
 
-        foreach (Transform sp in spawnPoints)
+        GameObject prefab = PickWavePrefab();
+        if (prefab == null) yield break;
+
+        int gapStart = Random.Range(0, n);
+        if (gapStart == lastGapStart)
+            gapStart = (gapStart + 1) % n;
+        lastGapStart = gapStart;
+
+        int gapEnd = gapStart + gSize - 1;
+
+        for (int i = 0; i < n; i++)
         {
-            GameObject obj = Instantiate(bulletPrefab, sp.position, sp.rotation);
+            if (IsInGap(i, gapStart, gapEnd, n)) continue;
+            if (aliveBullets >= maxAliveBullets) break;
 
-            BulletHomingSimple bullet = obj.GetComponent<BulletHomingSimple>();
-            if (bullet != null)
+            GameObject obj = Instantiate(prefab, spawnPoints[i].position, Quaternion.identity);
+            aliveBullets++;
+            StartCoroutine(TrackDestroy(obj));
+
+            BulletHomingSimple b = obj.GetComponent<BulletHomingSimple>();
+            if (b != null)
             {
-                bullet.speed = currentBulletSpeed;
-                // 👇 هذا السطر هو اللي كان ناقص، يخليهم يلاحقون اللاعب
-                bullet.SetTarget(player);
+                b.speed = speed;
+                b.lifeTime = bulletLifeTime;
+                b.homing = false;
+                b.SetFixedDirection(wallDirection);
             }
+        }
+
+        yield return null;
+    }
+
+    IEnumerator TrackDestroy(GameObject obj)
+    {
+        while (obj != null) yield return null;
+        aliveBullets = Mathf.Max(0, aliveBullets - 1);
+    }
+
+    bool IsInGap(int index, int start, int end, int n)
+    {
+        if (end < n)
+            return index >= start && index <= end;
+
+        int wrappedEnd = end % n;
+        return index >= start || index <= wrappedEnd;
+    }
+
+    GameObject PickWavePrefab()
+    {
+        float r = Random.value;
+
+        if (r < 0.55f && whiteBulletPrefab != null) return whiteBulletPrefab;
+        if (r < 0.90f && blueBulletPrefab != null) return blueBulletPrefab;
+        if (redBulletPrefab != null) return redBulletPrefab;
+
+        if (whiteBulletPrefab != null) return whiteBulletPrefab;
+        if (blueBulletPrefab != null) return blueBulletPrefab;
+        return redBulletPrefab;
+    }
+
+    void EndFight()
+    {
+        fightEnded = true;
+        canShoot = false;
+
+        if (currentWave != null)
+            StopCoroutine(currentWave);
+
+        if (bossMusic != null && bossMusic.isPlaying)
+            bossMusic.Stop();
+
+        // 👇 فقط نظهر البانل، بدون لمس النص
+        if (winPanel != null)
+        {
+            winPanel.SetActive(true);
+            winPanel.transform.SetAsLastSibling();
         }
     }
 
     public void StartFight()
     {
+        fightEnded = false;
         canShoot = true;
-        timer = 0f;
-        fightTimer = 0f;
-    }
 
-    public void StopFight()
-    {
-        canShoot = false;
+        fightTimer = 0f;
+        spawnTimer = 0f;
+        aliveBullets = 0;
+        lastGapStart = -1;
+
+        if (currentWave != null)
+            StopCoroutine(currentWave);
+
+        if (winPanel != null)
+            winPanel.SetActive(false);
+
+        if (bossMusic != null && !bossMusic.isPlaying)
+            bossMusic.Play();
     }
 }

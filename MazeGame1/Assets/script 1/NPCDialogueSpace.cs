@@ -3,15 +3,16 @@ using TMPro;
 
 public class NPCDialogueSpace : MonoBehaviour
 {
-    public GameObject dialogueBox;   // البوكس (Panel)
-    public TMP_Text dialogueText;    // النص داخل البوكس
+    public GameObject dialogueBox;        // Panel
+    public TMP_Text dialogueText;         // Text TMP
+    public DialogueTypewriter typewriter; // اسحبي سكربت الـTypewriter هنا
 
     [TextArea(2, 5)]
-    public string[] lines;           // الجمل
+    public string[] lines;
 
     private int index = 0;
-    private bool started = false;    // لأول مرة فقط
-    private bool isShowing = false;  // هل الحوار مفتوح الآن؟
+    private bool started = false;
+    private bool isShowing = false;
 
     void Start()
     {
@@ -21,9 +22,16 @@ public class NPCDialogueSpace : MonoBehaviour
 
     void Update()
     {
-        // إذا الحوار مفتوح واللاعب ضغط Space → نروح للجملة اللي بعدها
         if (isShowing && Input.GetKeyDown(KeyCode.Space))
         {
+            // إذا لسه يكتب → كمّلي السطر فورًا
+            if (typewriter != null && typewriter.IsTyping)
+            {
+                typewriter.FinishLine(lines[index]);
+                return;
+            }
+
+            // إذا السطر خلص → روحي للي بعده
             NextLine();
         }
     }
@@ -52,8 +60,17 @@ public class NPCDialogueSpace : MonoBehaviour
 
         index = 0;
         dialogueBox.SetActive(true);
-        dialogueText.text = lines[index];
         isShowing = true;
+
+        ShowLine();
+    }
+
+    void ShowLine()
+    {
+        if (typewriter != null)
+            typewriter.TypeLine(lines[index]);
+        else
+            dialogueText.text = lines[index]; // احتياط لو ما ربطتي typewriter
     }
 
     void NextLine()
@@ -66,7 +83,7 @@ public class NPCDialogueSpace : MonoBehaviour
             return;
         }
 
-        dialogueText.text = lines[index];
+        ShowLine();
     }
 
     void HideDialogue()

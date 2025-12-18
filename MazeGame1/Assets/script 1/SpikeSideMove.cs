@@ -2,11 +2,12 @@
 
 public class SpikeSideMove : MonoBehaviour
 {
-    public float moveDistance = 2f;
+    public float moveRightDistance = 2f; // كم يروح يمين
+    public float moveLeftDistance = 2f;  // كم يروح يسار
     public float speed = 2f;
 
-    private int direction = 1;
-    private float startX;
+    float startX;
+    int direction = 1; // 1 = يمين, -1 = يسار
 
     void Start()
     {
@@ -15,10 +16,16 @@ public class SpikeSideMove : MonoBehaviour
 
     void Update()
     {
-        if (transform.position.x >= startX + moveDistance)
+        // حد اليمين
+        if (transform.position.x >= startX + moveRightDistance)
+        {
             direction = -1;
-        else if (transform.position.x <= startX - moveDistance)
+        }
+        // حد اليسار
+        else if (transform.position.x <= startX - moveLeftDistance)
+        {
             direction = 1;
+        }
 
         transform.Translate(Vector3.right * direction * speed * Time.deltaTime);
     }
